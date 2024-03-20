@@ -1,139 +1,123 @@
 import csv
 import os
-
 import psycopg2
 import sys
 from datetime import datetime
 
-CON = psycopg2.connect(
-    host=os.environ['HOST'],
-    database=os.environ['DATABASE'],
-    user=os.environ['USER'],
-    password=os.environ['PASSWORD']
-)
-CON.set_session(autocommit=True)
-CURSOR = CON.cursor()
+def connect_to_database():
+    try:
+        connection = psycopg2.connect(
+            host=os.environ['HOST'],
+            database=os.environ['DATABASE'],
+            user=os.environ['USER'],
+            password=os.environ['PASSWORD']
+        )
+        connection.set_session(autocommit=True)
+        return connection
+    except psycopg2.OperationalError as e:
+        print("Error connecting to the database:", e)
+        sys.exit(1)
 
+def execute_sql_query(connection, sql_query):
+    try:
+        cursor = connection.cursor()
+        cursor.execute(sql_query)
+    except psycopg2.Error as e:
+        print("Error executing SQL query:", e)
 
-def create_tables_in_db():
+def create_tables_in_db(connection):
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS standups
+    (
+        user_id     TEXT,
+        date        DATE,
+        yesterday   TEXT,
+        today       TEXT,
+        blocker     TEXT,
+        channel     TEXT,
+        modified_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, date)
+    );
     """
-    Creates required tables.
-    :return: None
-    """
-    CURSOR.execute(
-        """
-        CREATE TABLE IF NOT EXISTS standups
-        (
-            user_id     TEXT,
-            date        DATE,
-            yesterday   TEXT,
-            today       TEXT,
-            blocker     TEXT,
-            channel     TEXT,
-            modified_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE(user_id, date)
-        );
-        """
-    )
+    execute_sql_query(connection, create_table_query)
 
+def drop_tables_in_db(connection):
+    drop_table_query = "DROP TABLE IF EXISTS standups;"
+    execute_sql_query(connection, drop_table_query)
 
-def drop_tables_in_db():
-    """
-    Drops tables from db.
-    :return: None
-    """
-    CURSOR.execute(
-        """
-        DROP TABLE IF EXISTS standups;
-        """
-    )
-
-
-def upsert_today_standup_status(user_id, channel=None, column_name=None, message=None):
-    """
-    Inserts today's standup status to database.
-    :param message: Standup message to store
-    :param column_name: Column name in which message needs to store
-    :return: None
-    """
-    create_tables_in_db()
+def upsert_today_standup_status(connection, user_id, channel=None, column_name=None, message=None):
+    create_tables_in_db(connection)
     today = datetime.today().date()
     now = datetime.today()
-    CURSOR.execute(
-        """
-        INSERT INTO standups (
-            user_id,
-            date,
-            {column_name}
-            {channel}
-            modified_at
-        )
-        VALUES (%s, %s::DATE, %s, %s::TIMESTAMP)
-        ON CONFLICT(user_id, date) DO UPDATE SET
-            {column_conflict_clause}
-            {channel_conflict_clause}
-        ;
-        """.format(
-            column_name=f'{column_name},' if column_name else '',
-            channel=f'channel,' if channel else '',
-            column_conflict_clause=f'{column_name}=excluded.{column_name}' if column_name else '',
-            channel_conflict_clause='channel=excluded.channel' if channel else ''
-        ),
-        (user_id, today, channel, now) if channel else (user_id, today, message, now)
+    sql_query = """
+    INSERT INTO standups (
+        user_id,
+        date,
+        {column_name}
+        {channel}
+        modified_at
     )
-
-
-def get_today_standup_status(user_id):
-    """
-    Gets today's standup status of user.
-    :param user_id: User whom standup is being retrieved
-    :return: Dict of values for today's standup
-    """
-    today = datetime.today()
-    CURSOR.execute(
-        """
-        SELECT * FROM standups WHERE user_id='{user_id_val}' AND date='{today_val}';
-        """.format(
-            user_id_val=user_id,
-            today_val=today
-        )
-    )
-    return CURSOR.fetchone()
-
-
-def generate_report(username, start_date, end_date):
-    """
-    Generates report for a user in provided dates.
-    :param username: Username of user whom report is required
-    :param start_date: Start date to get records
-    :param end_date: End date till records neeed to be fetched
-    :return: A CSV filename containing report.
-    """
-    sql = """
-    SELECT * FROM standups
-    WHERE user_id='{username}'
-    AND date>='{start_date}'
-    AND date<='{end_date}';
+    VALUES (%s, %s::DATE, %s, %s::TIMESTAMP)
+    ON CONFLICT(user_id, date) DO UPDATE SET
+        {column_conflict_clause}
+        {channel_conflict_clause}
+    ;
     """.format(
-        username=username,
-        start_date=start_date,
-        end_date=end_date
+        column_name=f'{column_name},' if column_name else '',
+        channel=f'channel,' if channel else '',
+        column_conflict_clause=f'{column_name}=excluded.{column_name}' if column_name else '',
+        channel_conflict_clause='channel=excluded.channel' if channel else ''
     )
-    CURSOR.execute(sql)
-    csv_filename = f'<@{username}>-starndup-report.csv'
-    with open(csv_filename, 'w+', newline='') as report:
-        fieldnames = ['date', 'user_id', 'yesterday', 'today', 'blocker']
-        writer = csv.writer(report)
+    try:
+        cursor = connection.cursor()
+        if channel:
+            cursor.execute(sql_query, (user_id, today, channel, now))
+        else:
+            cursor.execute(sql_query, (user_id, today, message, now))
+    except psycopg2.Error as e:
+        print("Error upserting standup status:", e)
 
-        writer.writerow(fieldnames)
-        for row in CURSOR.fetchall():
-            writer.writerow([row[1], row[0], row[2], row[3], row[4]])
+def get_today_standup_status(connection, user_id):
+    today = datetime.today()
+    sql_query = """
+    SELECT * FROM standups WHERE user_id=%s AND date=%s;
+    """
+    try:
+        cursor = connection.cursor()
+        cursor.execute(sql_query, (user_id, today))
+        return cursor.fetchone()
+    except psycopg2.Error as e:
+        print("Error fetching today's standup status:", e)
 
-    return csv_filename
-
+def generate_report(connection, username, start_date, end_date):
+    sql_query = """
+    SELECT * FROM standups
+    WHERE user_id=%s
+    AND date>=%s
+    AND date<=%s;
+    """
+    try:
+        cursor = connection.cursor()
+        cursor.execute(sql_query, (username, start_date, end_date))
+        csv_filename = f'<@{username}>-standup-report.csv'
+        with open(csv_filename, 'w+', newline='') as report:
+            fieldnames = ['date', 'user_id', 'yesterday', 'today', 'blocker']
+            writer = csv.writer(report)
+            writer.writerow(fieldnames)
+            for row in cursor.fetchall():
+                writer.writerow([row[1], row[0], row[2], row[3], row[4]])
+        return csv_filename
+    except psycopg2.Error as e:
+        print("Error generating report:", e)
 
 if __name__ == "__main__":
-    if sys.argv[1] == "drop-tables":
-        drop_tables_in_db()
+    try:
+        connection = connect_to_database()
+    except Exception as e:
+        print("Error:", e)
+        sys.exit(1)
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "drop-tables":
+        drop_tables_in_db(connection)
 
-    create_tables_in_db()
+    create_tables_in_db(connection)
