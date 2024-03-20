@@ -69,4 +69,65 @@ def post_standup_completion_message(user_id, say):
                     {
                         "type": "section",
                         "text": {
-                            "type​⬤
+                            "type": "mrkdwn",
+                            "text": f"{today_standup_status[3]}"
+                        }
+                    },
+                    {
+                        "type": "header",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Any blocker?",
+                            "emoji": True
+                        }
+                    },
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"{today_standup_status[4]}"
+                        }
+                    },
+                    {
+                        "type": "divider"
+                    }
+                ]
+            },
+            channel=today_standup_status[5]
+        )
+
+def ask_standup_status(say):
+    # Implementation for asking standup status goes here
+    pass
+
+# Define command and actions handlers
+
+@app.command("/standup")
+def standup_command(ack, say, command):
+    # Handle the /standup command
+    ack()
+    ask_standup_status(say)
+
+@app.action("channel-selection-action")
+def action_channel_selection(body, ack, say):
+    # Handle the channel selection action
+    ack()
+    user_id = body['user']['id']
+    channel = body['actions'][0]['selected_channel']
+    upsert_today_standup_status(body['user']['id'], channel=channel)
+    post_standup_completion_message(user_id, say)
+
+# Define other action handlers...
+
+@app.command("/generate-report")
+def standup_command(ack, say, command):
+    # Handle the /generate-report command
+    ack()
+    # Extract parameters from the command and generate the report
+    # Call generate_report function
+    # Respond with the generated report file
+    pass
+
+if __name__ == "__main__":
+    # Start the Bolt app
+    app.start(port=int(os.environ.get("PORT", 3000)))
