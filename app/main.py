@@ -2,15 +2,25 @@ import os
 from datetime import datetime
 
 from slack_bolt import App
+from slack_bolt.oauth.oauth_settings import OAuthSettings
+from slack_sdk.oauth.installation_store import FileInstallationStore
+from slack_sdk.oauth.state_store import FileOAuthStateStore
+
 from app.db import upsert_today_standup_status, get_today_standup_status, generate_report
 
-# Initialize the Bolt app with the bot token
-app = App(
-    token=os.environ["SLACK_BOT_TOKEN"],
-    signing_secret=os.environ["SIGNING_SECRET"]
+oauth_settings = OAuthSettings(
+    client_id=os.environ["SLACK_CLIENT_ID"],
+    client_secret=os.environ["SLACK_CLIENT_SECRET"],
+    scopes=["channels:history", "chat:write", "commands", "im:history", "im:read", "files:write"],
+    # installation_store=FileInstallationStore(base_dir="./data"),
+    state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="./data")
 )
 
-# Define functions for handling standup status submission and report generation
+app = App(
+    signing_secret=os.environ["SIGNING_SECRET"],
+    oauth_settings=oauth_settings
+)
+
 
 def check_standup_status_submission_completed(today_standup_status):
     """
@@ -18,9 +28,14 @@ def check_standup_status_submission_completed(today_standup_status):
     :param today_standup_status: Today's standup status
     :return: True if standup is complete otherwise False
     """
-    if today_standup_status[2] and today_standup_status[3] and today_standup_status[4] and today_standup_status[5]:
+    if today_standup_status[2] \
+            and today_standup_status[3] \
+            and today_standup_status[4] \
+            and today_standup_status[5]:
         return True
+
     return False
+
 
 def post_standup_completion_message(user_id, say):
     """
@@ -96,38 +111,107 @@ def post_standup_completion_message(user_id, say):
             channel=today_standup_status[5]
         )
 
-def ask_standup_status(say):
-    # Implementation for asking standup status goes here
-    pass
 
-# Define command and actions handlers
+def ask_standup_status(say):
+    say(
+        {
+            "blocks": [
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "plain_text",
+                            "text": "Select the channel to post your standup",
+                            "emoji": True
+                        }
+                    ]
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "channels_select",
+                            "placeholder": {
+                                "type": "plain_text",
+                                "text": "Select the channel to post your standup",
+                                "emoji": True
+                            },
+                            "initial_channel": "C12345678",
+                            "action_id": "channel-selection-action"
+                        }
+                    ]
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "dispatch_action": True,
+                    "type": "input",
+                    "element": {
+                        "type": "plain_text_input",
+                        "multiline": True,
+                        "action_id": "lastday-action"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "What did you do yesterday?",
+                        "emoji": True
+                    }
+                },
+                {
+                    "dispatch_action": True,
+                    "type": "input",
+                    "element": {
+                        "type": "plain_text_input",
+                        "multiline": True,
+                        "action_id": "today-action"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "What are you planning to do today?",
+                        "emoji": True
+                    }
+                },
+                {
+                    "dispatch_action": True,
+                    "type": "input",
+                    "element": {
+                        "type": "plain_text_input",
+                        "multiline": True,
+                        "action_id": "blocker-action"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "Anything blocking you?",
+                        "emoji": True
+                    }
+                }
+            ]
+        }
+    )
+
 
 @app.command("/standup")
 def standup_command(ack, say, command):
-    # Handle the /standup command
     ack()
+    print("Received /standup command")  # Debug message
     ask_standup_status(say)
+
 
 @app.action("channel-selection-action")
 def action_channel_selection(body, ack, say):
-    # Handle the channel selection action
     ack()
     user_id = body['user']['id']
     channel = body['actions'][0]['selected_channel']
+    print(f"User {user_id} selected channel {channel}")  # Debug message
     upsert_today_standup_status(body['user']['id'], channel=channel)
     post_standup_completion_message(user_id, say)
 
-# Define other action handlers...
 
-@app.command("/generate-report")
-def standup_command(ack, say, command):
-    # Handle the /generate-report command
-    ack()
-    # Extract parameters from the command and generate the report
-    # Call generate_report function
-    # Respond with the generated report file
-    pass
+# Add debug messages to other action functions as needed
 
 if __name__ == "__main__":
-    # Start the Bolt app
     app.start(port=int(os.environ.get("PORT", 3000)))
