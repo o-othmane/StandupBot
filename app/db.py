@@ -4,20 +4,11 @@ import psycopg2
 import sys
 from datetime import datetime
 
-# Database connection parameters
-DB_HOST = os.environ.get('DB_HOST')
-DB_NAME = os.environ.get('DB_NAME')
-DB_USER = os.environ.get('DB_USER')
-DB_PASSWORD = os.environ.get('DB_PASSWORD')
+DATABASE_URL = os.environ['DATABASE_URL']
 
 # Connect to the database
 try:
-    CON = psycopg2.connect(
-        host=DB_HOST,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD
-    )
+    CON = psycopg2.connect(DATABASE_URL, sslmode='require')
     CON.set_session(autocommit=True)
     CURSOR = CON.cursor()
     print("Connected to the database successfully")  # Debug message
