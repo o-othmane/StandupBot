@@ -12,7 +12,7 @@ oauth_settings = OAuthSettings(
     client_id=os.environ["SLACK_CLIENT_ID"],
     client_secret=os.environ["SLACK_CLIENT_SECRET"],
     scopes=["channels:history", "chat:write", "commands", "im:history", "im:read", "files:write"],
-    # installation_store=FileInstallationStore(base_dir="./data"),
+    installation_store=FileInstallationStore(base_dir="./data"),
     state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="./data")
 )
 
@@ -197,7 +197,6 @@ def ask_standup_status(say):
 @app.command("/standup")
 def standup_command(ack, say, command):
     ack()
-    print("Received /standup command")  # Debug message
     ask_standup_status(say)
 
 
@@ -206,12 +205,73 @@ def action_channel_selection(body, ack, say):
     ack()
     user_id = body['user']['id']
     channel = body['actions'][0]['selected_channel']
-    print(f"User {user_id} selected channel {channel}")  # Debug message
+    # say(f"<@{body['user']['id']}> selected <#{channel}>")
     upsert_today_standup_status(body['user']['id'], channel=channel)
     post_standup_completion_message(user_id, say)
 
 
-# Add debug messages to other action functions as needed
+@app.action("lastday-action")
+def action_yesterday_standup_status(body, ack, say):
+    ack()
+    user_id = body['user']['id']
+    msg = body['actions'][0]['value']
+    # say(f"<@{body['user']['id']}> submitted standup status with message: {msg}.")
+    upsert_today_standup_status(user_id, column_name='yesterday', message=msg)
+    post_standup_completion_message(user_id, say)
 
-if __name__ == "__main__":
-    app.start(port=int(os.environ.get("PORT", 3000)))
+
+@app.action("today-action")
+def action_today_standup_status(body, ack, say):
+    ack()
+    user_id = body['user']['id']
+    msg = body['actions'][0]['value']
+    # say(f"<@{body['user']['id']}> submitted standup status with message: {msg}.")
+    upsert_today_standup_status(user_id, column_name='today', message=msg)
+    post_standup_completion_message(user_id, say)
+
+
+@app.action("blocker-action")
+def action_blocker_standup_status(body, ack, say):
+    ack()
+    user_id = body['user']['id']
+    msg = body['actions'][0]['value']
+    # say(f"<@{body['user']['id']}> submitted standup status with message: {msg}.")
+    upsert_today_standup_status(user_id, column_name='blocker', message=msg)
+    post_standup_completion_message(user_id, say)
+
+
+@app.command("/generate-report")
+def standup_command(ack, say, command):
+    ack()
+    text = command.get('text')
+    channel_id = command.get('channel_id')
+    username = userid = start_start = date_end = ''
+    try:
+        splited_text = text.split(' ')
+        username = splited_text[0]
+        userid = username.split('|')[0].replace('@', '').replace('<', '')
+        start_start = datetime.strptime(splited_text[1], '%Y-%m-%d').date()
+        date_end = datetime.strptime(splited_text[2], '%Y-%m-%d').date()
+    except Exception:
+        say("You didn't try to generate report in correct syntax. The correct syntax ix `/generate-report @user start_date end_date`. ")
+        raise Exception
+
+    report = generate_report(userid, start_start, date_end)
+    response = app.client.files_upload(
+        channels=channel_id,
+        file=report
+    )
+    download_url = response['file']['permalink']
+    say(
+        text={
+                "blocks": [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"Your report for user {username} has been generated click link below to download:\n*<{download_url}|Download Report>*",
+                        }
+                    }
+                ]
+            }
+    )
