@@ -45,6 +45,13 @@ def drop_tables_in_db():
         """
     )
 
+create_tables_in_db()
+    print("Tables created successfully")  # Debug message
+
+except psycopg2.Error as e:
+    print("Error: Unable to connect to the database:", e)  # Error message
+    sys.exit(1)
+
 def upsert_today_standup_status(user_id, channel=None, column_name=None, message=None):
     """
     Inserts today's standup status to database.
