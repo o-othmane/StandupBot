@@ -35,8 +35,15 @@ def create_tables_in_db():
 
 
 def drop_tables_in_db():
+    """
+    Drops tables from db.
+    :return: None
+    """
+    CURSOR.execute(
+        """
+        DROP TABLE IF EXISTS standups;
+        """
     )
-
 
 def upsert_today_standup_status(user_id, channel=None, column_name=None, message=None):
     """
