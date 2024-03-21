@@ -12,40 +12,39 @@ try:
     CON.set_session(autocommit=True)
     CURSOR = CON.cursor()
     
-def create_tables_in_db():
-    """
-    Creates required tables.
-    :return: None
-    """
-    CURSOR.execute(
+    def create_tables_in_db():
         """
-        CREATE TABLE IF NOT EXISTS standups
-        (
-            user_id     TEXT,
-            date        DATE,
-            yesterday   TEXT,
-            today       TEXT,
-            blocker     TEXT,
-            channel     TEXT,
-            modified_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE(user_id, date)
-        );
+        Creates required tables.
+        :return: None
         """
-    )
+        CURSOR.execute(
+            """
+            CREATE TABLE IF NOT EXISTS standups
+            (
+                user_id     TEXT,
+                date        DATE,
+                yesterday   TEXT,
+                today       TEXT,
+                blocker     TEXT,
+                channel     TEXT,
+                modified_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, date)
+            );
+            """
+        )
 
-
-def drop_tables_in_db():
-    """
-    Drops tables from db.
-    :return: None
-    """
-    CURSOR.execute(
+    def drop_tables_in_db():
         """
-        DROP TABLE IF EXISTS standups;
+        Drops tables from db.
+        :return: None
         """
-    )
+        CURSOR.execute(
+            """
+            DROP TABLE IF EXISTS standups;
+            """
+        )
 
-create_tables_in_db()
+    create_tables_in_db()
     print("Tables created successfully")  # Debug message
 
 except psycopg2.Error as e:
