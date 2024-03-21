@@ -3,7 +3,6 @@ from datetime import datetime
 
 from slack_bolt import App
 from slack_bolt.oauth.oauth_settings import OAuthSettings
-from slack_sdk.oauth.installation_store import FileInstallationStore
 from slack_sdk.oauth.state_store import FileOAuthStateStore
 
 from app.db import upsert_today_standup_status, get_today_standup_status, generate_report
@@ -11,7 +10,7 @@ from app.db import upsert_today_standup_status, get_today_standup_status, genera
 oauth_settings = OAuthSettings(
     client_id=os.environ["SLACK_CLIENT_ID"],
     client_secret=os.environ["SLACK_CLIENT_SECRET"],
-    scopes=["channels:history", "chat:write", "commands", "im:history", "im:read", "files:write"]
+    scopes=["channels:history", "chat:write", "commands", "im:history", "im:read", "files:write", "user:read"]
 )
 
 app = App(
