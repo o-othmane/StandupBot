@@ -4,48 +4,56 @@ import psycopg2
 import sys
 from datetime import datetime
 
-DATABASE_URL = os.environ['DATABASE_URL']
+# Database connection parameters
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # Connect to the database
 try:
     CON = psycopg2.connect(DATABASE_URL, sslmode='require')
     CON.set_session(autocommit=True)
     CURSOR = CON.cursor()
-    
+
     def create_tables_in_db():
         """
         Creates required tables.
         :return: None
         """
-        CURSOR.execute(
-            """
-            CREATE TABLE IF NOT EXISTS standups
-            (
-                user_id     TEXT,
-                date        DATE,
-                yesterday   TEXT,
-                today       TEXT,
-                blocker     TEXT,
-                channel     TEXT,
-                modified_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(user_id, date)
-            );
-            """
-        )
+        try:
+            CURSOR.execute(
+                """
+                CREATE TABLE IF NOT EXISTS standups
+                (
+                    user_id     TEXT,
+                    date        DATE,
+                    yesterday   TEXT,
+                    today       TEXT,
+                    blocker     TEXT,
+                    channel     TEXT,
+                    modified_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(user_id, date)
+                );
+                """
+            )
+            print("Tables created successfully")  # Debug message
+        except psycopg2.Error as e:
+            print("Error creating tables:", e)  # Error message
 
     def drop_tables_in_db():
         """
         Drops tables from db.
         :return: None
         """
-        CURSOR.execute(
-            """
-            DROP TABLE IF EXISTS standups;
-            """
-        )
+        try:
+            CURSOR.execute(
+                """
+                DROP TABLE IF EXISTS standups;
+                """
+            )
+            print("Tables dropped successfully")  # Debug message
+        except psycopg2.Error as e:
+            print("Error dropping tables:", e)  # Error message
 
     create_tables_in_db()
-    print("Tables created successfully")  # Debug message
 
 except psycopg2.Error as e:
     print("Error: Unable to connect to the database:", e)  # Error message
