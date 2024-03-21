@@ -17,7 +17,7 @@ app = App(
     signing_secret=os.environ["SIGNING_SECRET"],
     oauth_settings=oauth_settings
 )
-
+app.client.auth_test()
 
 def check_standup_status_submission_completed(today_standup_status):
     """
